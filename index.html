@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#070c16">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Astro Alberto">
+<meta name="application-name" content="Astro Alberto">
+<meta name="description" content="Astro Alberto, assistente per osservazione visuale con telescopio, planisfero, effemeridi e condizioni meteo">
+<title>Astro Alberto · osservazione visuale</title>
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="css/app.css">
+<script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
+</head>
+<body>
+
+<div class="perm-backdrop" id="permOverlay" style="display:none">
+  <div class="perm-card">
+    <h2>Benvenuto in Astro Alberto</h2>
+    <div class="sub">Puoi iniziare subito, senza concedere permessi. Imposta una località cercando il comune, usa il GPS quando premi GPS e autorizza fotocamera e sensori di movimento solo quando avvii il puntamento AR o il radar.</div>
+    <div class="perm-row"><div class="ico">📍</div><div class="txt"><div class="ttl">Posizione</div><div class="desc">Facoltativa. Si richiede soltanto quando premi GPS. La località scelta resta salvata sul dispositivo.</div></div></div>
+    <div class="perm-row"><div class="ico">📷</div><div class="txt"><div class="ttl">Fotocamera e sensori</div><div class="desc">Si richiedono soltanto quando avvii il puntamento AR o il radar.</div></div></div>
+    <div class="perm-row" style="border-color:var(--red);background:rgba(231,76,60,0.06)"><div class="ico">🌙</div><div class="txt"><div class="ttl" style="color:var(--red)">Modalità Luce Rossa</div><div class="desc">Consigliata durante l'osservazione: preserva l'adattamento al buio dei tuoi occhi. Si attiva dal pulsante in alto.</div></div></div>
+    <button class="perm-btn" id="permGrant">Inizia</button>
+  </div>
+</div>
+
+<header class="app-header">
+  <div class="hdr-top">
+    <div class="loc-bar">
+      <span id="locLabel">Caricamento posizione...</span>
+    </div>
+    <div class="hdr-actions">
+      <button class="hdr-btn" id="btnGps" aria-label="Usa GPS" title="Usa la posizione GPS">
+        <span class="hdr-btn-icon">📍</span><span>GPS</span>
+      </button>
+      <button type="button" class="hdr-btn red-toggle" id="btnRedMode" aria-pressed="false" title="Modalità luce rossa">
+        <span class="hdr-btn-icon">🔴</span><span>Luce</span>
+      </button>
+    </div>
+  </div>
+  <div class="loc-search-box">
+    <input type="text" id="locInput" placeholder="Cerca comune...">
+    <button id="btnSearchCity">Cerca</button>
+  </div>
+  <div class="loc-results" id="locResults"></div>
+  <div class="loc-title" id="dateTitle">Calcolo effemeridi...</div>
+  <div class="setup-specs">Celestron NexStar 8SE (D: 203 mm, f/10, focale 2032 mm)<br>Oculari: 25 mm e 15 mm originali, zoom SVBONY 7-21 mm, Baader Hyperion Zoom Mark IV 8-24 mm, Barlow 2x.</div>
+  <div class="navrow">
+    <button id="btnPrev">← Prec.</button>
+    <button id="btnToday" class="primary">Stanotte</button>
+    <button id="btnNext">Succ. →</button>
+  </div>
+</header>
+
+<main class="tabs-content">
+
+  <section class="tab-panel active" data-tab="home">
+    <div class="astro-debug" id="astroDebug"><span class="dbg-title">🔍 VERIFICA ASTRONOMICA</span><span id="astroDebugContent">Inizializzazione...</span></div>
+    <div id="pointingTarget"></div>
+    <div class="card">
+      <div class="card-head">METEO &amp; CONDIZIONI ATMOSFERICHE</div>
+      <div class="grid">
+        <div><span class="label" id="mCloudsLabel">Nuvolosità riferimento:</span><span class="val" id="mCloudsLive">N/D</span></div>
+        <div><span class="label">Media Buio Astronomico:</span><span class="val" id="mCloudsAvg">N/D</span></div>
+        <div><span class="label">Temp ORA | Umidità:</span><span class="val" id="mTemp">--°C | --%</span></div>
+        <div><span class="label">Punto di Rugiada ORA:</span><span class="val" id="mDew">--°C</span></div>
+        <div><span class="label">Vento a terra (10 m):</span><span class="val" id="mWind10">-- km/h</span></div>
+        <div><span class="label">Vento 1.500 m (850 hPa):</span><span class="val" id="mWind850">-- km/h</span></div>
+        <div><span class="label">Vento Quota (250 hPa Jet):</span><span class="val" id="mJet">-- km/h</span></div>
+        <div><span class="label">Indice Kp geomagnetico:</span><span class="val" id="mKp">--</span></div>
+        <div class="row-full"><span class="label">Condensa, Δ aria-rugiada:</span><span id="mCond">--</span></div>
+        <div class="row-full"><span class="label">Nuvole basse, medie, alte (notte):</span><span id="mCloudLayers">N/D</span></div>
+        <div class="row-full"><span class="label">Visibilità orizzontale (notte):</span><span id="mVis">N/D</span></div>
+        <div class="row-full"><span class="label">Aerosol e polvere (notte):</span><span id="mDust">N/D</span></div>
+        <div class="row-full"><span class="label">Seeing:</span><span id="mSeeing">--</span></div>
+      </div>
+      <div class="bortle-row"><label for="bortleSel">Cielo del tuo sito, scala Bortle</label><select id="bortleSel"></select></div>
+      <div id="nightScore"></div>
+      <div class="note"><b>Lastra Schmidt:</b> il punto di rugiada è un indicatore dell'umidità dell'aria, non della temperatura reale della lastra. Il rischio di condensa cresce quando la superficie della lastra si avvicina al punto di rugiada. Il paraluce riduce il raffreddamento radiativo.</div>
+    </div>
+  </section>
+
+  <section class="tab-panel" data-tab="sky">
+    <div class="card planisphere-card" id="planisphereCard">
+      <div class="planisphere-head">
+        <div class="planisphere-title">PLANISFERO CELESTE LOCALE</div>
+        <div class="planisphere-sub">Zenit al centro · Est a sinistra (convenzione celeste)</div>
+      </div>
+      <div class="planisphere-controls">
+        <button type="button" id="btnPlanisphereNow">ORA</button>
+        <div class="planisphere-time" id="planisphereTimeLabel">Calcolo notte...</div>
+        <button type="button" id="btnPlanisphereNight">NOTTE</button>
+        <button type="button" id="btnPlanisphereSize" title="Cambia il criterio di dimensione dei puntini">PUNTO: LUMIN.</button>
+      </div>
+      <input class="planisphere-range" id="planisphereRange" type="range" min="0" max="100" step="1" value="50" aria-label="Ora del planisfero">
+      <div class="planisphere-wrap">
+        <canvas id="skyCanvas" width="600" height="600" aria-label="Planisfero del cielo locale"></canvas>
+      </div>
+      <div class="planisphere-legend">
+        <div class="legend-row legend-row-stars">
+          <span class="lg-prefix">STELLA:</span>
+          <span title="Classe A/B">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><defs><radialGradient id="lgABg" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#ffffff"/><stop offset="38%" stop-color="#c8d4ff"/><stop offset="70%" stop-color="#8fa8ff"/><stop offset="100%" stop-color="#4d6cbf"/></radialGradient></defs><circle cx="7" cy="7" r="6" fill="url(#lgABg)"/></svg>A/B · blu-bianche (calde)
+          </span>
+          <span title="Classe F/G">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="#ffdd33"/><circle cx="6" cy="6" r="2" fill="#fff6b0" opacity="0.55"/></svg>F/G · gialle (come il Sole)
+          </span>
+          <span title="Classe K">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="#ff8c1a"/><circle cx="6" cy="6" r="2" fill="#ffc47a" opacity="0.55"/></svg>K · arancioni
+          </span>
+          <span title="Classe M">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="#e63946"/><circle cx="6" cy="6" r="2" fill="#ff8f8a" opacity="0.55"/></svg>M · rosse (fredde)
+          </span>
+        </div>
+        <div class="legend-row legend-row-bodies">
+          <span title="Luna">
+            <svg width="14" height="14" viewBox="0 0 22 22" aria-hidden="true"><defs><radialGradient id="lgMoong" cx="35%" cy="35%" r="75%"><stop offset="0%" stop-color="#ffffff"/><stop offset="65%" stop-color="#eceef2"/><stop offset="100%" stop-color="#b8bcc4"/></radialGradient></defs><g stroke="#ffffff" stroke-width="1.1" stroke-linecap="round" opacity="0.85"><line x1="11" y1="0.8" x2="11" y2="3"/><line x1="11" y1="19" x2="11" y2="21.2"/><line x1="0.8" y1="11" x2="3" y2="11"/><line x1="19" y1="11" x2="21.2" y2="11"/></g><circle cx="11" cy="11" r="7" fill="url(#lgMoong)"/><circle cx="8" cy="8" r="1.2" fill="#9aa0aa" opacity="0.6"/><circle cx="14" cy="9.5" r="1" fill="#9aa0aa" opacity="0.55"/><circle cx="9" cy="13.5" r="0.8" fill="#9aa0aa" opacity="0.5"/><circle cx="13.5" cy="14" r="0.7" fill="#9aa0aa" opacity="0.5"/><circle cx="11" cy="11" r="0.6" fill="#9aa0aa" opacity="0.45"/><circle cx="6" cy="12" r="0.6" fill="#9aa0aa" opacity="0.45"/><circle cx="15.5" cy="12.5" r="0.5" fill="#9aa0aa" opacity="0.4"/></svg>Luna
+          </span>
+          <span title="Sole">
+            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="#ffd633"/><g stroke="#ffd633" stroke-width="2" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="23"/><line x1="1" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="23" y2="12"/><line x1="4.2" y1="4.2" x2="6.3" y2="6.3"/><line x1="17.7" y1="17.7" x2="19.8" y2="19.8"/><line x1="4.2" y1="19.8" x2="6.3" y2="17.7"/><line x1="17.7" y1="6.3" x2="19.8" y2="4.2"/></g></svg>Sole
+          </span>
+          <span title="Pianeti">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="#f5c261"/><circle cx="6" cy="6" r="2" fill="#fff0c8" opacity="0.55"/></svg>Pianeti
+          </span>
+        </div>
+      </div>
+      <div class="planisphere-legend-note">
+        <div class="pln-title">📖 Come leggere il planisfero</div>
+        <div class="pln-row" id="plnSizeRow"></div>
+        <div class="pln-row"><b>Alone luminoso:</b> cresce con la magnitudine (più brillante = alone più esteso).</div>
+        <div class="pln-row"><b>Colore:</b> indica la classe spettrale, cioè la temperatura superficiale (blu = più calda, rossa = più fredda).</div>
+      </div>
+      <div class="planisphere-info" id="planisphereInfo">Tocca un oggetto per vedere altezza, azimut e magnitudine all'ora selezionata.</div>
+      <div class="planisphere-note" id="planisphereNote">Pianeti calcolati per data e ora selezionate. Stelle basate sul catalogo di riferimento J2000.</div>
+    </div>
+  </section>
+
+  <section class="tab-panel" data-tab="solar">
+    <div class="seg-control" id="solarSeg">
+      <button type="button" class="active" data-seg="luna"><span class="seg-icon">🌙</span> Luna</button>
+      <button type="button" data-seg="pianeti"><span class="seg-icon">🪐</span> Pianeti</button>
+    </div>
+
+    <div class="seg-panel active" data-seg-content="luna">
+      <div class="card" id="moonCard">
+        <div class="card-head">BUIO ASTRONOMICO &amp; LUNA</div>
+        <div class="grid">
+          <div><span class="label">Tramonto &rarr; Alba Sole:</span><span class="val" id="sunCycle">-- : --</span></div>
+          <div><span class="label">Buio pieno (Sole &lt; -18°):</span><span class="val" id="astroDark">-- : --</span></div>
+        </div>
+
+        <div class="moon-tabs" id="moonTabs">
+          <button type="button" class="moon-tab active" data-mtab="riassunto">📋 Riassunto</button>
+          <button type="button" class="moon-tab" data-mtab="globo">🌕 Globo 3D</button>
+          <button type="button" class="moon-tab" data-mtab="siti">🚀 Siti</button>
+          <button type="button" class="moon-tab" data-mtab="crateri">🌑 Crateri &amp; Mari</button>
+        </div>
+
+        <div class="moon-tab-content" data-mtab-content="riassunto" style="display:block">
+          <div class="moon-card" id="moonHeaderBox">
+            <div class="moon-card-top">
+              <div id="moonSvgWrap" class="moon-svg"></div>
+              <div class="moon-info">
+                <div class="moon-title" id="moonNameTxt">Caricamento Luna...</div>
+                <div class="moon-badges"><span class="tag wait" id="moonVisTag">--</span></div>
+              </div>
+              <div class="pmag moon-mag" id="moonMagBox">Mag --</div>
+            </div>
+            <div class="moon-card-sub" id="moonSubTxt">--</div>
+            <div id="moonSunSafety"></div>
+          </div>
+
+          <div id="moonMetricsWrap"></div>
+          <div class="nowpos" id="moonNowPos">Posizione corrente in calcolo...</div>
+          <div class="ptrack" id="moonTrack"></div>
+          <div class="prow2" id="moonTimesRow"><span>sorge --:--</span><span>max --°</span><span>tramonta --:--</span></div>
+          <div class="compact-metric" id="moonTransitLine" style="margin-top:6px;"></div>
+          <div class="term-block" id="moonTermBlock"></div>
+
+          <div class="verdict" style="margin-top:12px;">
+            <b>Consiglio C8 SE per la Luna:</b>
+            <span class="eyepiece-advice" id="moonEyepieceTxt">--</span>
+            <span class="eyepiece-advice" id="moonFieldTxt"></span>
+            <div class="beginner-guide"><b>Guida per principianti:</b> Osserva lungo il <i>terminatore</i> (la linea di confine tra luce e ombra). È lì che la luce radente del Sole crea ombre lunghe e fa risaltare con forte contrasto le pareti dei crateri e le catene montuose (come gli Appennini lunari).</div>
+          </div>
+
+          <div class="astrolinks">
+            <button type="button" class="btn-ar-inline ar" id="btnMoonAR">📷 Inquadra Luna</button>
+            <button type="button" class="btn-ar-inline radar" id="btnMoonRadar">🧭 Radar</button>
+          </div>
+        </div>
+
+        <div class="moon-tab-content" data-mtab-content="globo" style="display:none">
+          <div class="section-note" style="margin-top:0">Trascina per ruotare, pinch per zoomare, tocca un punto colorato per i dettagli.</div>
+          <div class="moon-filter-bar" id="moonFilterBar">
+            <button type="button" class="moon-filter active" data-mfilter="all">Tutti</button>
+            <button type="button" class="moon-filter" data-mfilter="landing">🚀 Siti</button>
+            <button type="button" class="moon-filter" data-mfilter="crater">🌑 Crateri</button>
+            <button type="button" class="moon-filter" data-mfilter="maria">🌊 Mari</button>
+            <button type="button" class="moon-filter" data-mfilter="mountain">⛰ Monti</button>
+          </div>
+          <div class="globe-legend">
+            <span><i style="background:#f2b84b"></i>Siti</span>
+            <span><i style="background:#51a0d5"></i>Crateri</span>
+            <span><i style="background:#2ecc71"></i>Mari</span>
+            <span><i style="background:#c77dff"></i>Monti</span>
+          </div>
+          <button type="button" class="btn-deselect" id="btnDeselect">✕ DESELEZIONA TUTTO</button>
+          <div id="moonGlobeContainer">
+            <div class="globe-compass-overlay" id="globeCompassOverlay">
+              <div class="gc-title">BUSSOLA SELENOGRAFICA</div>
+              <svg width="60" height="60" viewBox="0 0 60 60">
+                <circle cx="30" cy="30" r="26" fill="none" stroke="rgba(242,184,75,0.5)" stroke-width="1"/>
+                <circle cx="30" cy="30" r="18" fill="none" stroke="rgba(242,184,75,0.2)" stroke-width="0.7" stroke-dasharray="2,2"/>
+                <text x="30" y="11" text-anchor="middle" font-family="ui-monospace,monospace" font-size="11" font-weight="700" fill="#f2b84b">N</text>
+                <text x="30" y="54" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10" font-weight="700" fill="#8ca0ba">S</text>
+                <text x="52" y="34" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10" font-weight="700" fill="#8ca0ba">E</text>
+                <text x="8"  y="34" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10" font-weight="700" fill="#8ca0ba">O</text>
+                <line x1="30" y1="30" x2="30" y2="16" stroke="#f2b84b" stroke-width="1.5"/>
+                <circle cx="30" cy="30" r="2" fill="#f2b84b"/>
+              </svg>
+              <div class="gc-coords" id="globeCompassCoords">lat 0° · lon 0°</div>
+              <div class="gc-note">N = Nord selenografico</div>
+            </div>
+            <div class="globe-controls-overlay">
+              <button type="button" class="globe-ctrl-btn" id="globeZoomIn" title="Zoom avanti">+</button>
+              <button type="button" class="globe-ctrl-btn" id="globeZoomOut" title="Zoom indietro">−</button>
+              <button type="button" class="globe-ctrl-btn reset-btn" id="globeReset" title="Reset vista e deseleziona">RST</button>
+              <button type="button" class="globe-ctrl-btn" id="globeAutoRotate" title="Rotazione automatica">▶</button>
+            </div>
+          </div>
+          <div class="moon-map-info empty" id="moonGlobeInfo">Tocca un punto sul globo o clicca una voce dalle tab Siti / Crateri per vedere i dettagli.</div>
+          <div class="astrolinks" style="justify-content:center;margin-top:12px">
+            <a href="https://trek.nasa.gov/moon/" target="_blank" rel="noopener">NASA Moon Trek ↗</a>
+            <a href="https://quickmap.lroc.asu.edu/" target="_blank" rel="noopener">LROC QuickMap ↗</a>
+          </div>
+        </div>
+
+        <div class="moon-tab-content" data-mtab-content="siti" style="display:none">
+          <div class="section-note" style="margin-top:0">Tocca una card per aprire il <b>Globo 3D</b> sulla posizione esatta.</div>
+          <div id="landingSitesList"></div>
+        </div>
+
+        <div class="moon-tab-content" data-mtab-content="crateri" style="display:none">
+          <div class="section-note" style="margin-top:0">Tocca una card per aprire il <b>Globo 3D</b> sulla posizione esatta.</div>
+          <div id="cratersList"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="seg-panel" data-seg-content="pianeti">
+      <div class="card">
+        <div class="card-head">PIANETI NEL CORSO DELLA NOTTE</div>
+        <div class="section-note">Ogni curva mostra <b>24 ore esatte</b>. Ordinati per <b>visibilità ORA</b> e poi per <b>magnitudine</b>.</div>
+        <div id="planetCards">Calcolo posizioni orbitali in corso...</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-panel" data-tab="deepsky">
+    <div class="card">
+      <div class="card-head">STELLE &amp; OGGETTI DEEP SKY STANOTTE</div>
+      <div class="section-note">Culminazione e picco notturno per decidere se e quando osservare. Tocca una card per la scheda completa.</div>
+      <div class="toolbar" id="filterToolbar">
+        <button type="button" class="active" data-filter="all">Tutti</button>
+        <button type="button" data-filter="star">⭐ Stelle</button>
+        <button type="button" data-filter="double">Doppie</button>
+        <button type="button" data-filter="deep">🌫 Deep sky</button>
+      </div>
+      <div id="nightTargets">Calcolo bersagli...</div>
+      <div class="astrolinks" style="justify-content:center;margin-top:10px">
+        <button type="button" class="btn-ar-inline radar" id="btnGlobalRadar">🧭 Apri Radar completo</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-panel" data-tab="info">
+    <details class="collapse" open>
+      <summary>CALCOLO OCULARI CELESTRON 8SE (con Barlow 2x)</summary>
+      <div>
+        <table class="eyepiece-table">
+          <colgroup><col class="c-oculare"><col class="c-ingr"><col class="c-pupilla"><col class="c-campo"><col class="c-uso"></colgroup>
+          <thead><tr><th>Oculare</th><th class="num">Ingr.</th><th class="num">Pupilla</th><th class="num">Campo reale</th><th>Uso consigliato sul C8</th></tr></thead>
+          <tbody id="eyepieceBody"></tbody>
+        </table>
+        <div class="afov-edit" id="afovEdit">
+          <div class="term-title">CAMPO APPARENTE DEI TUOI OCULARI (GRADI)</div>
+          <div class="afov-grid">
+            <label for="afov_p25">25 mm originale</label><input type="number" inputmode="decimal" min="20" max="110" step="0.5" id="afov_p25">
+            <label for="afov_p15">15 mm originale</label><input type="number" inputmode="decimal" min="20" max="110" step="0.5" id="afov_p15" placeholder="da inserire">
+            <label for="afov_sv7">SVBONY zoom a 7 mm</label><input type="number" inputmode="decimal" min="20" max="110" step="0.5" id="afov_sv7">
+            <label for="afov_sv21">SVBONY zoom a 21 mm</label><input type="number" inputmode="decimal" min="20" max="110" step="0.5" id="afov_sv21">
+            <label for="afov_hy8">Hyperion zoom a 8 mm</label><input type="number" inputmode="decimal" min="20" max="110" step="0.5" id="afov_hy8">
+            <label for="afov_hy24">Hyperion zoom a 24 mm</label><input type="number" inputmode="decimal" min="20" max="110" step="0.5" id="afov_hy24">
+          </div>
+          <div class="afov-src">Valori iniziali presi da schede commerciali. 25 mm: 52° (scheda del 8SE su B&amp;H). Hyperion Mark IV: 50° a 24 mm e 68° a 8 mm (scheda OPT Corp). SVBONY 7-21 mm: la scheda di Telescopes Canada riporta 57° e 40° senza indicare a quale focale appartengano. Qui 57° è assegnato a 7 mm e 40° a 21 mm, per analogia con gli zoom simili. 15 mm originale: nessun dato verificato. Controlla i valori sulla confezione o sul manuale e correggili. Per le focali intermedie degli zoom il campo è interpolato in modo lineare, quindi è una stima. Campo reale = campo apparente diviso per l'ingrandimento.</div>
+          <button type="button" id="afovReset">Ripristina i valori iniziali</button>
+        </div>
+        <div class="note"><b>Regole di scelta:</b> a parità di focale si preferisce l'<b>Hyperion Zoom</b> allo SVBONY; a parità di ingrandimento si preferisce la configurazione senza Barlow. Le righe marcate <b>×2</b> sono combinazioni con Barlow 2x: le più utili sono 25 mm + Barlow (163x), SVBONY 21 mm + Barlow (194x) e SVBONY 15 mm + Barlow (271x). Le ×2 con oculari sotto i 12 mm (339x e 406x) sono solo per serate eccezionali.</div>
+        <div class="note" id="eyepieceLiveNote"><b>Adattamento live:</b> la qualità dell'immagine va verificata all'oculare.</div>
+        <div class="note">Il potere risolutivo teorico di Dawes del C8 da 203 mm è circa <b>0,57″</b>, non una garanzia di dettaglio reale. <b>200x è già elevato ma spesso utile.</b> 254x e 290x richiedono atmosfera stabile e ottiche in temperatura.</div>
+      </div>
+    </details>
+
+    <details class="collapse">
+      <summary>LEGENDA: COS'È LA MAGNITUDINE (MAG)?</summary>
+      <div><div style="font-size:var(--fs-base);color:var(--text);line-height:1.6;">
+        La <b>Magnitudine apparente (Mag)</b> misura la luminosità di un corpo celeste visto dalla Terra.<br>
+        • <b>Scala inversa</b>: più il numero è basso o negativo, più l'oggetto è brillante.<br>
+        • <b>Scala logaritmica</b>: un salto di 5 magnitudini = 100 volte di luminosità.<br>
+        • <b>Visibilità a occhio nudo</b>: fino a circa mag 6.0 sotto cielo di montagna.<br>
+        • <b>Portata Celestron 8SE (203 mm)</b>: fino a mag 14 in cielo buio; mag 11.5-12.0 da suburbano.
+      </div></div>
+    </details>
+
+    <details class="collapse">
+      <summary>SCIAMI METEORICI &amp; COMETE</summary>
+      <div>
+        <div class="label">Sciami attivi (Calendario IMO):</div>
+        <div class="val" id="showersText" style="margin-bottom:8px;">Controllo calendario...</div>
+        <div class="astrolinks">
+          <a href="https://theskylive.com/comets" target="_blank" rel="noopener">TheSkyLive Comete ↗</a>
+          <a href="https://cobs.si" target="_blank" rel="noopener">Database COBS ↗</a>
+        </div>
+      </div>
+    </details>
+
+    <details class="collapse">
+      <summary>PUNTAMENTO AR E RADAR: NORD DEL SENSORE</summary>
+      <div>
+        <div class="note" style="margin-top:0">Su Android l'orientamento assoluto del browser non indica in modo documentato se il nord sia magnetico o geografico. Il predefinito assume nord <b>magnetico</b> e applica la declinazione WMM. Su iPhone l'impostazione non incide.</div>
+        <div class="toolbar" id="northToolbar">
+          <button type="button" data-north="magnetic">Magnetico + WMM</button>
+          <button type="button" data-north="true">Geografico</button>
+        </div>
+        <div class="note"><b>Verifica in campo:</b> punta la fotocamera verso la Polare (azimut vicino a 0°, quota circa pari alla latitudine). Apri la diagnostica AR (icona 🐞) e confronta l'heading con le due opzioni. Scegli quella per cui l'heading si avvicina di più a 0°.</div>
+      </div>
+    </details>
+
+    <footer>
+      Effemeridi: Astronomy Engine (VSOP87). Meteo: Open-Meteo. Globo 3D: globe.gl + texture three.js.<br>
+      <button type="button" class="btn-ui" id="btnInstall" style="display:none;margin:8px 8px 0 0;background:var(--panel-2);border:1px solid var(--line);color:var(--cyan);font-size:var(--fs-sm);padding:8px 12px;border-radius:8px;font-family:var(--mono);min-height:38px;">Installa app</button>
+      <button type="button" class="btn-ui" id="btnResetPerms" style="margin-top:8px;background:var(--panel-2);border:1px solid var(--line);color:var(--cyan);font-size:var(--fs-sm);padding:8px 12px;border-radius:8px;font-family:var(--mono);min-height:38px;">Rivedi introduzione</button>
+    </footer>
+  </section>
+</main>
+
+<nav class="bottom-tabs" id="bottomTabs">
+  <button type="button" class="tab-btn active" data-tab="home">
+    <span class="tab-icon">🏠</span><span class="tab-label">Stanotte</span>
+  </button>
+  <button type="button" class="tab-btn" data-tab="sky">
+    <span class="tab-icon">🌌</span><span class="tab-label">Cielo</span>
+  </button>
+  <button type="button" class="tab-btn" data-tab="solar">
+    <span class="tab-icon">🪐</span><span class="tab-label">Solare</span>
+  </button>
+  <button type="button" class="tab-btn" data-tab="deepsky">
+    <span class="tab-icon">✨</span><span class="tab-label">Deep Sky</span>
+  </button>
+  <button type="button" class="tab-btn" data-tab="info">
+    <span class="tab-icon">⚙️</span><span class="tab-label">Info</span>
+  </button>
+</nav>
+
+<div id="modalRoot"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/globe.gl@2.34.0/dist/globe.gl.min.js"></script>
+<script src="data/catalogo.js"></script>
+<script src="data/luna.js"></script>
+<script src="data/stelle.js"></script>
+<script src="data/oculari.js"></script>
+<script src="js/stato.js"></script>
+<script src="js/effemeridi.js"></script>
+<script src="js/luna_pianeti.js"></script>
+<script src="js/oculari.js"></script>
+<script src="js/planisfero.js"></script>
+<script src="js/bersagli.js"></script>
+<script src="js/dettaglio_ar_radar.js"></script>
+<script src="js/luna_tab.js"></script>
+<script src="js/aggiornamento.js"></script>
+<script src="js/meteo.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
