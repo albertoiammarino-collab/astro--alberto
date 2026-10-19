@@ -3,7 +3,7 @@
    Salva i file dell'applicazione per l'avvio senza rete.
    Le richieste verso altri domini (meteo, NOAA, librerie) non passano dalla cache.
    Cambia VERSIONE a ogni pubblicazione per forzare l'aggiornamento. */
-var VERSIONE = 'astro-alberto-2026-10-17';
+var VERSIONE = 'astro-alberto-2026-10-19';
 var FILE = [
   './',
   'index.html',
@@ -24,7 +24,8 @@ var FILE = [
   'js/meteo.js',
   'js/app.js',
   'manifest.webmanifest',
-  'icon-192.png'
+  'icon-192.png',
+  'icon-512.png'
 ];
 
 self.addEventListener('install', function(event){
